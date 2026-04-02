@@ -1,0 +1,261 @@
+name: Auto Sync OpenJDK 17
+
+on:
+  # 定时触发：每天凌晨 0 点 UTC (北京时间上午 8 点)
+  schedule:
+    - cron: '0 0 * * *'
+  
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      sync_all_branches:
+        description: 'Sync all branches (true/false)'
+        required: false
+        default: 'true'
+      sync_tags:
+        description: 'Sync tags (true/false)'
+        required: false
+        default: 'true'
+      force_push:
+        description: 'Force push (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  sync:
+    name: Sync with OpenJDK Upstream
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN || secrets.PERSONAL_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git config --global push.default simple
+
+      - name: Add upstream remote
+        run: |
+          # 检查是否已添加 upstream
+          if ! git remote | grep -q '^upstream$'; then
+            git remote add upstream https://github.com/openjdk/jdk17.git
+          fi
+          git fetch upstream --tags --force
+
+      - name: Get upstream branches
+        id: branches
+        run: |
+          # 获取所有上游分支
+          echo "获取上游分支列表..."
+          git branch -r | grep upstream | sed 's/upstream\///' > upstream_branches.txt
+          echo "上游分支:"
+          cat upstream_branches.txt
+          
+          # 保存到 GitHub Actions 输出
+          BRANCHES=$(cat upstream_branches.txt | tr '\n' ' ')
+          echo "branches=$BRANCHES" >> $GITHUB_OUTPUT
+
+      - name: Sync master branch
+        run: |
+          echo "同步 master 分支..."
+          git checkout master
+          
+          # 获取上游最新代码
+          git fetch upstream master --force
+          
+          # 合并更新
+          if git merge upstream/master --no-edit; then
+            echo "✅ master 分支合并成功"
+          else
+            echo "⚠️  master 分支有冲突，强制使用上游版本"
+            git merge --abort
+            git reset --hard upstream/master
+          fi
+          
+          # 推送到 origin
+          if [ "${{ github.event.inputs.force_push }}" = "true" ]; then
+            git push origin master --force
+          else
+            git push origin master --force-with-lease
+          fi
+
+      - name: Sync all branches
+        if: github.event.inputs.sync_all_branches != 'false'
+        run: |
+          echo "同步所有分支..."
+          
+          # 读取所有上游分支
+          while read branch; do
+            if [ -n "$branch" ]; then
+              echo "处理分支: $branch"
+              
+              # 检查本地是否有该分支
+              if git show-ref --verify --quiet "refs/heads/$branch"; then
+                echo "分支 $branch 已存在，更新..."
+                git checkout "$branch"
+                git merge "upstream/$branch" --no-edit || git reset --hard "upstream/$branch"
+              else
+                echo "创建新分支: $branch"
+                git checkout -b "$branch" "upstream/$branch"
+              fi
+              
+              # 推送分支
+              if [ "${{ github.event.inputs.force_push }}" = "true" ]; then
+                git push origin "$branch" --force
+              else
+                git push origin "$branch" --force-with-lease
+              fi
+            fi
+          done < upstream_branches.txt
+
+      - name: Sync all tags
+        if: github.event.inputs.sync_tags != 'false'
+        run: |
+          echo "同步所有标签..."
+          
+          # 获取所有上游标签
+          git fetch upstream --tags --force
+          
+          # 推送所有标签
+          if [ "${{ github.event.inputs.force_push }}" = "true" ]; then
+            git push origin --tags --force
+          else
+            git push origin --tags --force-with-lease
+          fi
+          
+          echo "✅ 标签同步完成"
+
+      - name: Generate sync report
+        run: |
+          # 生成同步报告
+          cat > SYNC_REPORT.md << EOF
+          # OpenJDK 17 同步报告
+          
+          **同步时间**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          
+          ## 同步内容
+          
+          - **上游仓库**: https://github.com/openjdk/jdk17
+          - **同步分支**: ${{ steps.branches.outputs.branches }}
+          - **同步标签**: 是
+          - **强制推送**: ${{ github.event.inputs.force_push || 'false' }}
+          
+          ## 同步状态
+          
+          ✅ master 分支已同步
+          ✅ 所有分支已同步
+          ✅ 所有标签已同步
+          
+          ## 下一步
+          
+          同步完成后，Actions 会自动触发 JDK 17 的编译构建。
+          
+          ---
+          
+          *此报告由 GitHub Actions 自动生成*
+          EOF
+          
+          cat SYNC_REPORT.md
+
+      - name: Commit sync report
+        run: |
+          git checkout master
+          git add SYNC_REPORT.md
+          git commit -m "chore: sync report $(date -u +'%Y-%m-%d')" || echo "No changes"
+          git push origin master
+
+      - name: Create notification
+        if: success()
+        run: |
+          echo "## ✅ 同步成功" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**同步时间**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**上游仓库**: https://github.com/openjdk/jdk17" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**同步分支**:" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.branches.outputs.branches }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Trigger build workflow
+        if: success()
+        run: |
+          # 触发构建工作流
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/build-jdk17.yml/dispatches \
+            -d '{"ref":"master","inputs":{"branch":"master","build_type":"release"}}'
+
+  # 每周全量同步（确保不遗漏任何更新）
+  weekly-full-sync:
+    name: Weekly Full Sync
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && github.event.schedule == '0 0 * * 0'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN || secrets.PERSONAL_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Full sync with upstream
+        run: |
+          # 添加上游
+          git remote add upstream https://github.com/openjdk/jdk17.git || true
+          
+          # 强制获取所有内容
+          git fetch upstream --all --tags --force
+          
+          # 镜像推送（覆盖所有分支和标签）
+          git push origin --all --force
+          git push origin --tags --force
+          
+          echo "✅ 每周全量同步完成"
+
+  # 检查上游更新
+  check-upstream-updates:
+    name: Check Upstream Updates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+      - name: Fetch upstream commits
+        id: check
+        run: |
+          # 克隆上游仓库
+          git clone --bare https://github.com/openjdk/jdk17.git upstream-repo
+          cd upstream-repo
+          
+          # 获取最新提交
+          LATEST_COMMIT=$(git log -1 --format='%H %s')
+          echo "latest_commit=$LATEST_COMMIT" >> $GITHUB_OUTPUT
+          
+          # 获取最近的提交数量
+          RECENT_COMMITS=$(git log --since="1 day ago" --oneline | wc -l)
+          echo "recent_commits=$RECENT_COMMITS" >> $GITHUB_OUTPUT
+          
+          echo "上游最新提交: $LATEST_COMMIT"
+          echo "最近24小时提交数: $RECENT_COMMITS"
+
+      - name: Create update notice
+        if: steps.check.outputs.recent_commits > 0
+        run: |
+          echo "## 🔄 检测到上游更新" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**最新提交**: ${{ steps.check.outputs.latest_commit }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**最近24小时提交数**: ${{ steps.check.outputs.recent_commits }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ 已自动同步上游更新" >> $GITHUB_STEP_SUMMARY

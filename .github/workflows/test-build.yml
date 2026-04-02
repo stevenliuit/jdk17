@@ -1,0 +1,92 @@
+name: Test Build OpenJDK 17
+
+on:
+  workflow_dispatch:
+    inputs:
+      quick_test:
+        description: 'Run quick test only (true/false)'
+        required: false
+        default: 'true'
+
+jobs:
+  test-build:
+    name: Quick Test Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libfreetype6-dev \
+            libcups2-dev \
+            libx11-dev \
+            libxext-dev \
+            libxrender-dev \
+            libxrandr-dev \
+            libxtst-dev \
+            libasound2-dev \
+            autoconf \
+            automake \
+            libtool \
+            make \
+            zip \
+            unzip
+
+      - name: Install Boot JDK 16
+        run: |
+          wget -q https://github.com/adoptium/temurin16-binaries/releases/download/jdk-16%2B36/OpenJDK16U-jdk_x64_linux_hotspot_16_36.tar.gz
+          tar -xzf OpenJDK16U-jdk_x64_linux_hotspot_16_36.tar.gz
+          echo "BOOT_JDK=$PWD/jdk-16+36" >> $GITHUB_ENV
+          echo "$PWD/jdk-16+36/bin" >> $GITHUB_PATH
+
+      - name: Test Boot JDK
+        run: |
+          java -version
+          javac -version
+
+      - name: Configure build (quick)
+        if: github.event.inputs.quick_test == 'true'
+        run: |
+          bash configure \
+            --with-boot-jdk="${{ env.BOOT_JDK }}" \
+            --disable-warnings-as-errors \
+            --with-debug-level=fastdebug \
+            --with-jvm-variants=minimal
+
+      - name: Configure build (full)
+        if: github.event.inputs.quick_test != 'true'
+        run: |
+          bash configure \
+            --with-boot-jdk="${{ env.BOOT_JDK }}" \
+            --disable-warnings-as-errors \
+            --with-debug-level=release
+
+      - name: Build JDK (quick)
+        if: github.event.inputs.quick_test == 'true'
+        run: |
+          make images JOBS=4 LOG=cmdline
+
+      - name: Build JDK (full)
+        if: github.event.inputs.quick_test != 'true'
+        run: |
+          make images JOBS=8 LOG=cmdline
+
+      - name: Test build
+        run: |
+          ./build/*/jdk/bin/java -version
+          ./build/*/jdk/bin/javac -version
+
+      - name: Upload test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-jdk
+          path: build/*/jdk
+          retention-days: 1

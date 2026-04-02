@@ -1,0 +1,499 @@
+name: Build OpenJDK 17
+
+on:
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build (default: master)'
+        required: false
+        default: 'master'
+      build_type:
+        description: 'Build type'
+        required: false
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - fastdebug
+          - debug
+
+  # 定时触发：每天凌晨 2 点 UTC (北京时间上午 10 点)
+  schedule:
+    - cron: '0 2 * * *'
+
+  # Push 触发
+  push:
+    branches:
+      - master
+      - main
+      - 'jdk-17*'
+      - 'jdk17*'
+
+  # PR 触发
+  pull_request:
+    branches:
+      - master
+      - main
+
+jobs:
+  sync-upstream:
+    name: Sync with Upstream
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/openjdk/jdk17.git
+          git fetch upstream
+
+      - name: Sync with upstream
+        run: |
+          # 获取所有分支
+          git fetch upstream --tags
+          
+          # 同步 master 分支
+          git checkout master
+          git merge upstream/master --no-edit || git merge --abort
+          
+          # 推送更新
+          git push origin master --force-with-lease
+          git push origin --tags --force-with-lease
+
+      - name: Create update commit
+        run: |
+          # 创建更新通知
+          echo "## OpenJDK 17 自动更新" > UPDATE.md
+          echo "" >> UPDATE.md
+          echo "更新时间: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> UPDATE.md
+          echo "" >> UPDATE.md
+          echo "本次更新来自 OpenJDK 官方仓库: https://github.com/openjdk/jdk17" >> UPDATE.md
+
+      - name: Push changes
+        run: |
+          git add UPDATE.md
+          git commit -m "chore: sync with upstream $(date -u +'%Y-%m-%d')" || echo "No changes"
+          git push origin master
+
+  build-linux:
+    name: Build on Linux (${{ matrix.arch }})
+    needs: sync-upstream
+    if: always() && (needs.sync-upstream.result == 'success' || needs.sync-upstream.result == 'skipped')
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 360
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-20.04
+            arch: x64
+            bootjdk: 16
+          - os: ubuntu-20.04
+            arch: aarch64
+            bootjdk: 16
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || 'master' }}
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android/sdk
+          sudo rm -rf /opt/ghc
+          sudo clean-cache all || true
+          df -h
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libfreetype6-dev \
+            libcups2-dev \
+            libx11-dev \
+            libxext-dev \
+            libxrender-dev \
+            libxrandr-dev \
+            libxtst-dev \
+            libasound2-dev \
+            libffi-dev \
+            libfontconfig1-dev \
+            autoconf \
+            automake \
+            libtool \
+            make \
+            zip \
+            unzip \
+            ccache \
+            git \
+            wget \
+            curl \
+            mercurial \
+            python3 \
+            python3-dev \
+            python3-pip
+
+      - name: Install Boot JDK ${{ matrix.bootjdk }}
+        run: |
+          wget -q https://github.com/adoptium/temurin${{ matrix.bootjdk }}-binaries/releases/download/jdk-${{ matrix.bootjdk }}+35/OpenJDK${{ matrix.bootjdk }}U-jdk_x64_linux_hotspot_${{ matrix.bootjdk }}_35.tar.gz
+          tar -xzf OpenJDK${{ matrix.bootjdk }}U-jdk_x64_linux_hotspot_${{ matrix.bootjdk }}_35.tar.gz
+          echo "BOOT_JDK=$PWD/jdk-${{ matrix.bootjdk }}+35" >> $GITHUB_ENV
+          echo "$PWD/jdk-${{ matrix.bootjdk }}+35/bin" >> $GITHUB_PATH
+
+      - name: Configure ccache
+        run: |
+          echo "CCACHE_DIR=$PWD/.ccache" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=5G" >> $GITHUB_ENV
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/*.java', '**/*.c', '**/*.cpp') }}
+          restore-keys: |
+            ccache-${{ matrix.os }}-${{ matrix.arch }}-
+            ccache-${{ matrix.os }}-
+
+      - name: Configure build
+        run: |
+          bash configure \
+            --with-boot-jdk="${{ env.BOOT_JDK }}" \
+            --with-native-package-suffix=linux \
+            --with-version-opt="--${{ github.run_number }}" \
+            --with-version-build="${{ github.run_number }}" \
+            --enable-ccache \
+            --disable-warnings-as-errors \
+            --with-jvm-variants=server \
+            --with-debug-level=${{ github.event.inputs.build_type || 'release' }} \
+            --with-native-package-suffix=linux \
+            || (cat config.log && exit 1)
+
+      - name: Build JDK
+        run: |
+          make images JOBS=8 LOG=cmdline
+
+      - name: Test build
+        run: |
+          # 基本测试
+          ./build/linux-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}/jdk/bin/java -version
+          ./build/linux-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}/jdk/bin/javac -version
+
+      - name: Package JDK
+        run: |
+          cd build/linux-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}
+          tar -czf OpenJDK17-${{ matrix.arch }}-linux.tar.gz jdk
+          sha256sum OpenJDK17-${{ matrix.arch }}-linux.tar.gz > OpenJDK17-${{ matrix.arch }}-linux.tar.gz.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenJDK17-${{ matrix.arch }}-linux
+          path: build/linux-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}/OpenJDK17-${{ matrix.arch }}-linux.tar.gz
+          retention-days: 30
+
+      - name: Upload checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenJDK17-${{ matrix.arch }}-linux-checksum
+          path: build/linux-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}/OpenJDK17-${{ matrix.arch }}-linux.tar.gz.sha256
+          retention-days: 30
+
+  build-windows:
+    name: Build on Windows (${{ matrix.arch }})
+    needs: sync-upstream
+    if: always() && (needs.sync-upstream.result == 'success' || needs.sync-upstream.result == 'skipped')
+    runs-on: windows-2022
+    timeout-minutes: 360
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            bootjdk: 16
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || 'master' }}
+
+      - name: Free disk space
+        shell: powershell
+        run: |
+          Remove-Item -Recurse -Force "C:\Program Files\dotnet" -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force "C:\Program Files\Android" -ErrorAction SilentlyContinue
+          Get-PSDrive -PSProvider FileSystem
+
+      - name: Install build dependencies
+        shell: powershell
+        run: |
+          choco install -y visualstudio2022buildtools --package-parameters "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows10SDK --passive"
+          choco install -y cygwin --params "/InstallDir:C:\cygwin64"
+
+      - name: Install Boot JDK ${{ matrix.bootjdk }}
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/adoptium/temurin${{ matrix.bootjdk }}-binaries/releases/download/jdk-${{ matrix.bootjdk }}+35/OpenJDK${{ matrix.bootjdk }}U-jdk_x64_windows_hotspot_${{ matrix.bootjdk }}_35.zip" -OutFile "bootjdk.zip"
+          Expand-Archive -Path "bootjdk.zip" -DestinationPath "C:\bootjdk"
+          echo "BOOT_JDK=C:\bootjdk\jdk-${{ matrix.bootjdk }}+35" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "C:\bootjdk\jdk-${{ matrix.bootjdk }}+35\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
+          bash configure \
+            --with-boot-jdk="${{ env.BOOT_JDK }}" \
+            --with-native-package-suffix=windows \
+            --with-version-opt="--${{ github.run_number }}" \
+            --with-version-build="${{ github.run_number }}" \
+            --disable-warnings-as-errors \
+            --with-jvm-variants=server \
+            --with-debug-level=${{ github.event.inputs.build_type || 'release' }} \
+            || (type config.log && exit 1)
+
+      - name: Build JDK
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
+          make images JOBS=8 LOG=cmdline
+
+      - name: Test build
+        shell: cmd
+        run: |
+          build\windows-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}\jdk\bin\java.exe -version
+
+      - name: Package JDK
+        shell: powershell
+        run: |
+          Compress-Archive -Path "build\windows-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}\jdk" -DestinationPath "OpenJDK17-${{ matrix.arch }}-windows.zip"
+          Get-FileHash -Algorithm SHA256 "OpenJDK17-${{ matrix.arch }}-windows.zip" | Select-Object Hash | Out-File "OpenJDK17-${{ matrix.arch }}-windows.zip.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenJDK17-${{ matrix.arch }}-windows
+          path: OpenJDK17-${{ matrix.arch }}-windows.zip
+          retention-days: 30
+
+  build-macos:
+    name: Build on macOS (${{ matrix.arch }})
+    needs: sync-upstream
+    if: always() && (needs.sync-upstream.result == 'success' || needs.sync-upstream.result == 'skipped')
+    runs-on: macos-${{ matrix.os-version }}
+    timeout-minutes: 360
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os-version: '12'
+            arch: x64
+            bootjdk: 16
+          - os-version: '14'
+            arch: aarch64
+            bootjdk: 16
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || 'master' }}
+
+      - name: Install build dependencies
+        run: |
+          brew install freetype cups fontconfig autoconf automake libtool ccache
+
+      - name: Install Boot JDK ${{ matrix.bootjdk }}
+        run: |
+          wget -q https://github.com/adoptium/temurin${{ matrix.bootjdk }}-binaries/releases/download/jdk-${{ matrix.bootjdk }}+35/OpenJDK${{ matrix.bootjdk }}U-jdk_${{ matrix.arch }}_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz
+          tar -xzf OpenJDK${{ matrix.bootjdk }}U-jdk_${{ matrix.arch }}_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz
+          echo "BOOT_JDK=$PWD/jdk-${{ matrix.bootjdk }}+35" >> $GITHUB_ENV
+          echo "$PWD/jdk-${{ matrix.bootjdk }}+35/Contents/Home/bin" >> $GITHUB_PATH
+
+      - name: Configure build
+        run: |
+          bash configure \
+            --with-boot-jdk="${{ env.BOOT_JDK }}" \
+            --with-native-package-suffix=macos \
+            --with-version-opt="--${{ github.run_number }}" \
+            --with-version-build="${{ github.run_number }}" \
+            --enable-ccache \
+            --disable-warnings-as-errors \
+            --with-jvm-variants=server \
+            --with-debug-level=${{ github.event.inputs.build_type || 'release' }} \
+            || (cat config.log && exit 1)
+
+      - name: Build JDK
+        run: |
+          make images JOBS=8 LOG=cmdline
+
+      - name: Test build
+        run: |
+          ./build/macos-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}/jdk/bin/java -version
+
+      - name: Package JDK
+        run: |
+          cd build/macos-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}
+          tar -czf OpenJDK17-${{ matrix.arch }}-macos.tar.gz jdk
+          shasum -a 256 OpenJDK17-${{ matrix.arch }}-macos.tar.gz > OpenJDK17-${{ matrix.arch }}-macos.tar.gz.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenJDK17-${{ matrix.arch }}-macos
+          path: build/macos-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}/OpenJDK17-${{ matrix.arch }}-macos.tar.gz
+          retention-days: 30
+
+  create-release:
+    name: Create Release
+    needs: [build-linux, build-windows, build-macos]
+    if: success() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release notes
+        run: |
+          cat > RELEASE_NOTES.md << EOF
+          ## OpenJDK 17 自动构建
+
+          **构建时间**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          **构建类型**: ${{ github.event.inputs.build_type || 'release' }}
+          **构建分支**: ${{ github.event.inputs.branch || 'master' }}
+          **构建编号**: ${{ github.run_number }}
+
+          ### 下载链接
+
+          | 平台 | 架构 | 下载 |
+          |------|------|------|
+          | Linux | x64 | OpenJDK17-x64-linux.tar.gz |
+          | Linux | aarch64 | OpenJDK17-aarch64-linux.tar.gz |
+          | Windows | x64 | OpenJDK17-x64-windows.zip |
+          | macOS | x64 | OpenJDK17-x64-macos.tar.gz |
+          | macOS | aarch64 | OpenJDK17-aarch64-macos.tar.gz |
+
+          ### 校验和
+
+          所有文件都包含 SHA256 校验和文件（.sha256）。
+
+          ### 使用说明
+
+          1. 下载对应平台的 JDK 压缩包
+          2. 解压到目标目录
+          3. 设置 JAVA_HOME 环境变量指向解压目录
+          4. 将 \$JAVA_HOME/bin 添加到 PATH
+
+          ### 许可证
+
+          OpenJDK 17 使用 GPLv2 with Classpath Exception 许可证。
+
+          ---
+
+          **上游源**: https://github.com/openjdk/jdk17
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: jdk17-${{ github.run_number }}
+          name: OpenJDK 17 Build ${{ github.run_number }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 定时同步任务（每天凌晨 2 点 UTC）
+  sync-upstream-daily:
+    name: Daily Sync with Upstream
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Sync all branches
+        run: |
+          # 添加上游仓库
+          git remote add upstream https://github.com/openjdk/jdk17.git || true
+          git fetch upstream --tags --force
+          
+          # 获取所有分支
+          for branch in $(git branch -r | grep upstream | sed 's/upstream\///'); do
+            echo "同步分支: $branch"
+            git checkout -B $branch upstream/$branch --force || true
+            git push origin $branch --force-with-lease || true
+          done
+          
+          # 同步 master
+          git checkout master
+          git merge upstream/master --no-edit || git merge --abort
+          git push origin master --force-with-lease
+          
+          # 同步标签
+          git push origin --tags --force-with-lease
+
+      - name: Create sync commit
+        run: |
+          echo "## OpenJDK 17 每日同步" > SYNC.md
+          echo "" >> SYNC.md
+          echo "同步时间: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> SYNC.md
+          echo "" >> SYNC.md
+          echo "本次同步了 OpenJDK 17 的所有分支和标签。" >> SYNC.md
+          echo "" >> SYNC.md
+          echo "上游仓库: https://github.com/openjdk/jdk17" >> SYNC.md
+          
+          git add SYNC.md
+          git commit -m "chore: daily sync with upstream $(date -u +'%Y-%m-%d')" || echo "No changes"
+          git push origin master
+
+  # 清理旧的 artifacts
+  cleanup-artifacts:
+    name: Cleanup Old Artifacts
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+      - name: Delete old artifacts
+        uses: c-hive/gha-remove-artifacts@v1
+        with:
+          age: '7 days'
+          skip-recent: 3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
