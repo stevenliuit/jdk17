@@ -367,7 +367,7 @@ jobs:
             bootjdk: 16
           - os-version: '14'
             arch: aarch64
-            bootjdk: 16
+            bootjdk: 17
 
     steps:
       - name: Checkout repository
@@ -394,8 +394,15 @@ jobs:
 
       - name: Install Boot JDK ${{ matrix.bootjdk }}
         run: |
-          wget -q https://github.com/adoptium/temurin${{ matrix.bootjdk }}-binaries/releases/download/jdk-${{ matrix.bootjdk }}+35/OpenJDK${{ matrix.bootjdk }}U-jdk_${{ matrix.arch }}_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz
-          tar -xzf OpenJDK${{ matrix.bootjdk }}U-jdk_${{ matrix.arch }}_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            JDK_URL="https://github.com/adoptium/temurin${{ matrix.bootjdk }}-binaries/releases/download/jdk-${{ matrix.bootjdk }}+35/OpenJDK{{ matrix.bootjdk }}U-jdk_aarch64_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz"
+            JDK_ARCH="aarch64"
+          else
+            JDK_URL="https://github.com/adoptium/temurin${{ matrix.bootjdk }}-binaries/releases/download/jdk-${{ matrix.bootjdk }}+35/OpenJDK${{ matrix.bootjdk }}U-jdk_x64_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz"
+            JDK_ARCH="x64"
+          fi
+          wget -q "$JDK_URL"
+          tar -xzf OpenJDK${{ matrix.bootjdk }}U-jdk_${JDK_ARCH}_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz
           echo "BOOT_JDK=$PWD/jdk-${{ matrix.bootjdk }}+35" >> $GITHUB_ENV
           echo "$PWD/jdk-${{ matrix.bootjdk }}+35/Contents/Home/bin" >> $GITHUB_PATH
 
