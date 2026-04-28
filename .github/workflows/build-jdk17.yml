@@ -368,17 +368,8 @@ jobs:
           - os-version: '12'
             arch: x64
             bootjdk: 16
-          - os-version: '14'
-            arch: aarch64
-            bootjdk: 17
 
     steps:
-      - name: Skip aarch64 temporarily due to download issues
-        if: matrix.arch == 'aarch64'
-        run: |
-          echo "Skipping macOS aarch64 build temporarily - Boot JDK download issues"
-          exit 0
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
