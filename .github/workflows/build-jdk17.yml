@@ -395,14 +395,15 @@ jobs:
       - name: Install Boot JDK ${{ matrix.bootjdk }}
         run: |
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
-            JDK_URL="https://github.com/adoptium/temurin${{ matrix.bootjdk }}-binaries/releases/download/jdk-${{ matrix.bootjdk }}+35/OpenJDK{{ matrix.bootjdk }}U-jdk_aarch64_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz"
-            JDK_ARCH="aarch64"
+            JDK_URL="https://github.com/adoptium/temurin${{ matrix.bootjdk }}-binaries/releases/download/jdk-${{ matrix.bootjdk }}+35/OpenJDK${{ matrix.bootjdk }}U-jdk_aarch64_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz"
+            EXPECTED_FILENAME="OpenJDK${{ matrix.bootjdk }}U-jdk_aarch64_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz"
           else
             JDK_URL="https://github.com/adoptium/temurin${{ matrix.bootjdk }}-binaries/releases/download/jdk-${{ matrix.bootjdk }}+35/OpenJDK${{ matrix.bootjdk }}U-jdk_x64_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz"
-            JDK_ARCH="x64"
+            EXPECTED_FILENAME="OpenJDK${{ matrix.bootjdk }}U-jdk_x64_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz"
           fi
-          wget -q "$JDK_URL"
-          tar -xzf OpenJDK${{ matrix.bootjdk }}U-jdk_${JDK_ARCH}_mac_hotspot_${{ matrix.bootjdk }}_35.tar.gz
+          echo "Downloading: $JDK_URL"
+          wget -q "$JDK_URL" -O "$EXPECTED_FILENAME" || { echo "Failed to download $JDK_URL"; ls -la; exit 1; }
+          tar -xzf "$EXPECTED_FILENAME"
           echo "BOOT_JDK=$PWD/jdk-${{ matrix.bootjdk }}+35" >> $GITHUB_ENV
           echo "$PWD/jdk-${{ matrix.bootjdk }}+35/Contents/Home/bin" >> $GITHUB_PATH
 
