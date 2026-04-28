@@ -405,11 +405,19 @@ jobs:
             EXPECTED_DIR="jdk-16.0.2+7"
           fi
           echo "Downloading: $JDK_URL"
-          curl -L --fail --retry 3 --retry-delay 5 -o "$EXPECTED_DIR.tar.gz" "$JDK_URL"
-          tar -xzf "$EXPECTED_DIR.tar.gz"
-          ls -la
-          echo "BOOT_JDK=$PWD/$EXPECTED_DIR" >> $GITHUB_ENV
-          echo "$PWD/$EXPECTED_DIR/Contents/Home/bin" >> $GITHUB_PATH
+          echo "SSL_CERT_FILE=$SSL_CERT_FILE"
+          curl -v -L --fail --retry 3 --retry-delay 5 -o "$EXPECTED_DIR.tar.gz" "$JDK_URL" 2>&1
+          ls -la *.tar.gz 2>/dev/null || echo "No tar.gz files found"
+          if [ -f "$EXPECTED_DIR.tar.gz" ]; then
+            tar -tzf "$EXPECTED_DIR.tar.gz" | head -3
+            tar -xzf "$EXPECTED_DIR.tar.gz"
+            ls -la
+            echo "BOOT_JDK=$PWD/$EXPECTED_DIR" >> $GITHUB_ENV
+            echo "$PWD/$EXPECTED_DIR/Contents/Home/bin" >> $GITHUB_PATH
+          else
+            echo "Download failed, trying alternate approach..."
+            wget -v "$JDK_URL" -O "$EXPECTED_DIR.tar.gz" 2>&1 || echo "wget also failed"
+          fi
 
       - name: Configure build
         run: |
