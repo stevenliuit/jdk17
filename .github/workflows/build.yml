@@ -30,14 +30,15 @@ jobs:
       - name: Configure
         run: bash configure --disable-warnings-as-errors
 
-      - name: Patch spec.gmk files
+      - name: Patch build files
         run: |
-          for f in $(find build -name "spec.gmk"); do sed -i 's/-Werror//g' "$f"; done
+          find build -name "*.gmk" -exec sed -i 's/-Werror//g' {} \;
+          find build -name "*.mk" -exec sed -i 's/-Werror//g' {} \;
 
       - name: Build
         run: |
-          make images JOBS=$(nproc) \
-            JAVAC_TASK_WARNINGS="-Xlint:-options,-removal"
+          export JAVA_TOOL_OPTIONS="-Duser.language=en -Duser.country=US"
+          make images JOBS=$(nproc) DISABLE_JAVA_WARNINGS=true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -65,14 +66,15 @@ jobs:
       - name: Configure
         run: bash configure --disable-warnings-as-errors
 
-      - name: Patch spec.gmk files
+      - name: Patch build files
         run: |
-          for f in $(find build -name "spec.gmk"); do sed -i 's/-Werror//g' "$f"; done
+          find build -name "*.gmk" -exec sed -i 's/-Werror//g' {} \;
+          find build -name "*.mk" -exec sed -i 's/-Werror//g' {} \;
 
       - name: Build
         run: |
-          make images JOBS=$(nproc) \
-            JAVAC_TASK_WARNINGS="-Xlint:-options,-removal"
+          export JAVA_TOOL_OPTIONS="-Duser.language=en -Duser.country=US"
+          make images JOBS=$(nproc) DISABLE_JAVA_WARNINGS=true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -99,16 +101,17 @@ jobs:
         run: |
           ./configure --disable-warnings-as-errors --openjdk-target=x86_64-pc-windows-msvc
 
-      - name: Patch spec.gmk files
+      - name: Patch build files
         shell: bash
         run: |
-          for f in $(find build -name "spec.gmk"); do sed -i 's/-Werror//g' "$f"; done
+          find build -name "*.gmk" -exec sed -i 's/-Werror//g' {} \;
+          find build -name "*.mk" -exec sed -i 's/-Werror//g' {} \;
 
       - name: Build
         shell: bash
         run: |
-          make images JOBS=$env:NUMBER_OF_PROCESSORS \
-            JAVAC_TASK_WARNINGS="-Xlint:-options,-removal"
+          export JAVA_TOOL_OPTIONS="-Duser.language=en -Duser.country=US"
+          make images JOBS=$env:NUMBER_OF_PROCESSORS DISABLE_JAVA_WARNINGS=true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
