@@ -13,31 +13,27 @@ on:
 jobs:
   build-linux-x86:
     runs-on: ubuntu-latest
+    container: adoptopenjdk/centos7_build_image:latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ inputs.version }}
 
-      - name: Install dependencies
+      - name: Install dependencies in container
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang \
-            libfreetype6-dev libcups2-dev \
-            libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
-            libasound2-dev libfontconfig1-dev
-
-      - name: Patch source
-        run: |
-          sed -i 's/@return AccessController.doPrivileged/@SuppressWarnings("removal")\n    @return AccessController.doPrivileged/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
+          yum -y install epel-release
+          yum -y install \
+            gcc gcc-c++ make autoconf automake \
+            freetype-devel cups-devel libX11-devel libXext-devel \
+            libXrender-devel libXrandr-devel libXtst-devel libXi-devel \
+            alsa-lib-devel fontconfig-devel
 
       - name: Configure
-        run: bash configure --disable-warnings-as-errors
-
-      - name: Patch build files
         run: |
-          find build -name "*.gmk" -exec sed -i 's/-Werror//g' {} \;
-          find build -name "*.mk" -exec sed -i 's/-Werror//g' {} \;
+          bash configure --disable-warnings-as-errors \
+            --with-conf-name=linux-x86_64-server-release \
+            --with-version-opt=${{ github.run_number }}
 
       - name: Build
         run: make images JOBS=$(nproc)
@@ -51,6 +47,7 @@ jobs:
 
   build-linux-arm64:
     runs-on: ubuntu-24.04-arm64
+    container: adoptopenjdk/centos7_build_image:latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,23 +56,18 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang \
-            libfreetype6-dev libcups2-dev \
-            libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
-            libasound2-dev libfontconfig1-dev
-
-      - name: Patch source
-        run: |
-          sed -i 's/@return AccessController.doPrivileged/@SuppressWarnings("removal")\n    @return AccessController.doPrivileged/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
+          yum -y install epel-release
+          yum -y install \
+            gcc gcc-c++ make autoconf automake \
+            freetype-devel cups-devel libX11-devel libXext-devel \
+            libXrender-devel libXrandr-devel libXtst-devel libXi-devel \
+            alsa-lib-devel fontconfig-devel
 
       - name: Configure
-        run: bash configure --disable-warnings-as-errors
-
-      - name: Patch build files
         run: |
-          find build -name "*.gmk" -exec sed -i 's/-Werror//g' {} \;
-          find build -name "*.mk" -exec sed -i 's/-Werror//g' {} \;
+          bash configure --disable-warnings-as-errors \
+            --with-conf-name=linux-aarch64-server-release \
+            --with-version-opt=${{ github.run_number }}
 
       - name: Build
         run: make images JOBS=$(nproc)
@@ -96,25 +88,14 @@ jobs:
           ref: ${{ inputs.version }}
 
       - name: Install dependencies
-        shell: bash
         run: |
-          choco install -y make llvm autoconf
-
-      - name: Patch source
-        shell: bash
-        run: |
-          sed -i 's/@return AccessController.doPrivileged/@SuppressWarnings("removal")\n    @return AccessController.doPrivileged/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
+          choco install -y make llvm autoconf zip
 
       - name: Configure
         shell: bash
         run: |
-          ./configure --disable-warnings-as-errors --openjdk-target=x86_64-pc-windows-msvc
-
-      - name: Patch build files
-        shell: bash
-        run: |
-          find build -name "*.gmk" -exec sed -i 's/-Werror//g' {} \;
-          find build -name "*.mk" -exec sed -i 's/-Werror//g' {} \;
+          ./configure --disable-warnings-as-errors \
+            --openjdk-target=x86_64-pc-windows-msvc
 
       - name: Build
         shell: bash
