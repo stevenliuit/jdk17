@@ -24,11 +24,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential clang \
             libfreetype6-dev libcups2-dev \
-            libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev \
+            libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
             libasound2-dev
 
       - name: Configure
-        run: bash configure --disable-warnings-as-errors --with-devkit=/usr
+        run: bash configure --disable-warnings-as-errors
 
       - name: Build
         run: make images JOBS=$(nproc)
@@ -53,11 +53,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential clang \
             libfreetype6-dev libcups2-dev \
-            libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev \
+            libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
             libasound2-dev
 
       - name: Configure
-        run: bash configure --disable-warnings-as-errors --with-devkit=/usr
+        run: bash configure --disable-warnings-as-errors
 
       - name: Build
         run: make images JOBS=$(nproc)
@@ -80,7 +80,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          choco install -y make llvm
+          choco install -y make llvm autoconf
 
       - name: Configure
         shell: bash
