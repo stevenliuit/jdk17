@@ -12,31 +12,32 @@ on:
 
 jobs:
   build-linux-x86:
-    runs-on: ubuntu-latest
-    container: adoptopenjdk/centos7_build_image:latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ inputs.version }}
 
-      - name: Install dependencies in container
+      - name: Install dependencies
         run: |
-          yum -y install epel-release
-          yum -y install \
-            gcc gcc-c++ make autoconf automake \
-            freetype-devel cups-devel libX11-devel libXext-devel \
-            libXrender-devel libXrandr-devel libXtst-devel libXi-devel \
-            alsa-lib-devel fontconfig-devel
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential gcc-10 g++-10 \
+            autoconf automake libtool zip unzip \
+            freetype-devel libfreetype6-dev \
+            libcups2-dev \
+            libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
+            libasound2-dev libfontconfig1-dev
 
       - name: Configure
         run: |
-          bash configure --disable-warnings-as-errors \
-            --with-conf-name=linux-x86_64-server-release \
-            --with-version-opt=${{ github.run_number }}
+          CC=gcc-10 CXX=g++-10 bash configure \
+            --disable-warnings-as-errors \
+            --with-conf-name=linux-x86_64-server-release
 
       - name: Build
-        run: make images JOBS=$(nproc)
+        run: make images JOBS=$(nproc) USE_JDK_ALLOCATOR=false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -47,7 +48,6 @@ jobs:
 
   build-linux-arm64:
     runs-on: ubuntu-24.04-arm64
-    container: adoptopenjdk/centos7_build_image:latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,21 +56,23 @@ jobs:
 
       - name: Install dependencies
         run: |
-          yum -y install epel-release
-          yum -y install \
-            gcc gcc-c++ make autoconf automake \
-            freetype-devel cups-devel libX11-devel libXext-devel \
-            libXrender-devel libXrandr-devel libXtst-devel libXi-devel \
-            alsa-lib-devel fontconfig-devel
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential gcc-10 g++-10 \
+            autoconf automake libtool zip unzip \
+            freetype-devel libfreetype6-dev \
+            libcups2-dev \
+            libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
+            libasound2-dev libfontconfig1-dev
 
       - name: Configure
         run: |
-          bash configure --disable-warnings-as-errors \
-            --with-conf-name=linux-aarch64-server-release \
-            --with-version-opt=${{ github.run_number }}
+          CC=gcc-10 CXX=g++-10 bash configure \
+            --disable-warnings-as-errors \
+            --with-conf-name=linux-aarch64-server-release
 
       - name: Build
-        run: make images JOBS=$(nproc)
+        run: make images JOBS=$(nproc) USE_JDK_ALLOCATOR=false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -88,8 +90,7 @@ jobs:
           ref: ${{ inputs.version }}
 
       - name: Install dependencies
-        run: |
-          choco install -y make llvm autoconf zip
+        run: choco install -y make llvm autoconf zip
 
       - name: Configure
         shell: bash
@@ -99,7 +100,7 @@ jobs:
 
       - name: Build
         shell: bash
-        run: make images JOBS=$env:NUMBER_OF_PROCESSORS
+        run: make images JOBS=$env:NUMBER_OF_PROCESSORS USE_JDK_ALLOCATOR=false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
