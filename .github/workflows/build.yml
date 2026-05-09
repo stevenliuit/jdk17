@@ -31,7 +31,10 @@ jobs:
         run: bash configure --disable-warnings-as-errors
 
       - name: Build
-        run: make images JOBS=$(nproc) WARNINGS_ARE_ERRORS=false
+        run: |
+          make images JOBS=$(nproc) \
+            JAVAC_FLAGS="-Xlint:-options,-removal" \
+            JAVA_FLAGS="-Xlint:-options"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -60,7 +63,10 @@ jobs:
         run: bash configure --disable-warnings-as-errors
 
       - name: Build
-        run: make images JOBS=$(nproc) WARNINGS_ARE_ERRORS=false
+        run: |
+          make images JOBS=$(nproc) \
+            JAVAC_FLAGS="-Xlint:-options,-removal" \
+            JAVA_FLAGS="-Xlint:-options"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -89,7 +95,10 @@ jobs:
 
       - name: Build
         shell: bash
-        run: make images JOBS=$env:NUMBER_OF_PROCESSORS WARNINGS_ARE_ERRORS=false
+        run: |
+          make images JOBS=$env:NUMBER_OF_PROCESSORS \
+            JAVAC_FLAGS="-Xlint:-options,-removal" \
+            JAVA_FLAGS="-Xlint:-options"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
