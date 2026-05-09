@@ -19,9 +19,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.version }}
 
-      - name: Install dependencies
+      - name: Install JDK 11 as boot JDK
         run: |
           sudo apt-get update
+          sudo apt-get install -y openjdk-11-jdk
+
+      - name: Install dependencies
+        run: |
           sudo apt-get install -y --no-install-recommends \
             build-essential gcc-10 g++-10 \
             autoconf automake libtool zip unzip \
@@ -30,15 +34,14 @@ jobs:
             libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
             libasound2-dev libfontconfig1-dev
 
-      - name: Patch source for newer Java
-        run: |
-          sed -i '144s/@return/@SuppressWarnings("removal")\n    @return/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
-
       - name: Configure
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
         run: |
           CC=gcc-10 CXX=g++-10 bash configure \
             --disable-warnings-as-errors \
-            --with-conf-name=linux-x86_64-server-release
+            --with-conf-name=linux-x86_64-server-release \
+            --with-boot-jdk=$JAVA_HOME
 
       - name: Build
         run: make images JOBS=$(nproc)
@@ -58,9 +61,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.version }}
 
-      - name: Install dependencies
+      - name: Install JDK 11 as boot JDK
         run: |
           sudo apt-get update
+          sudo apt-get install -y openjdk-11-jdk
+
+      - name: Install dependencies
+        run: |
           sudo apt-get install -y --no-install-recommends \
             build-essential gcc-10 g++-10 \
             autoconf automake libtool zip unzip \
@@ -69,15 +76,14 @@ jobs:
             libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
             libasound2-dev libfontconfig1-dev
 
-      - name: Patch source for newer Java
-        run: |
-          sed -i '144s/@return/@SuppressWarnings("removal")\n    @return/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
-
       - name: Configure
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
         run: |
           CC=gcc-10 CXX=g++-10 bash configure \
             --disable-warnings-as-errors \
-            --with-conf-name=linux-aarch64-server-release
+            --with-conf-name=linux-aarch64-server-release \
+            --with-boot-jdk=$JAVA_HOME
 
       - name: Build
         run: make images JOBS=$(nproc)
@@ -97,19 +103,20 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.version }}
 
+      - name: Install JDK 11 as boot JDK
+        run: choco install -y openjdk11
+
       - name: Install dependencies
         run: choco install -y make llvm autoconf zip
 
-      - name: Patch source for newer Java
-        shell: bash
-        run: |
-          sed -i '144s/@return/@SuppressWarnings("removal")\n    @return/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
-
       - name: Configure
+        env:
+          JAVA_HOME: C:\Program Files\Eclipse Adoptium\jdk-11.0.21.9-hotspot
         shell: bash
         run: |
           ./configure --disable-warnings-as-errors \
-            --openjdk-target=x86_64-pc-windows-msvc
+            --openjdk-target=x86_64-pc-windows-msvc \
+            --with-boot-jdk=$JAVA_HOME
 
       - name: Build
         shell: bash
