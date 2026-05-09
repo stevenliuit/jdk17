@@ -27,6 +27,10 @@ jobs:
             libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
             libasound2-dev libfontconfig1-dev
 
+      - name: Patch source
+        run: |
+          sed -i 's/@return AccessController.doPrivileged/@SuppressWarnings("removal")\n    @return AccessController.doPrivileged/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
+
       - name: Configure
         run: bash configure --disable-warnings-as-errors
 
@@ -36,9 +40,7 @@ jobs:
           find build -name "*.mk" -exec sed -i 's/-Werror//g' {} \;
 
       - name: Build
-        run: |
-          export JAVA_TOOL_OPTIONS="-Duser.language=en -Duser.country=US"
-          make images JOBS=$(nproc) DISABLE_JAVA_WARNINGS=true
+        run: make images JOBS=$(nproc)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -63,6 +65,10 @@ jobs:
             libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
             libasound2-dev libfontconfig1-dev
 
+      - name: Patch source
+        run: |
+          sed -i 's/@return AccessController.doPrivileged/@SuppressWarnings("removal")\n    @return AccessController.doPrivileged/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
+
       - name: Configure
         run: bash configure --disable-warnings-as-errors
 
@@ -72,9 +78,7 @@ jobs:
           find build -name "*.mk" -exec sed -i 's/-Werror//g' {} \;
 
       - name: Build
-        run: |
-          export JAVA_TOOL_OPTIONS="-Duser.language=en -Duser.country=US"
-          make images JOBS=$(nproc) DISABLE_JAVA_WARNINGS=true
+        run: make images JOBS=$(nproc)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -96,6 +100,11 @@ jobs:
         run: |
           choco install -y make llvm autoconf
 
+      - name: Patch source
+        shell: bash
+        run: |
+          sed -i 's/@return AccessController.doPrivileged/@SuppressWarnings("removal")\n    @return AccessController.doPrivileged/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
+
       - name: Configure
         shell: bash
         run: |
@@ -109,9 +118,7 @@ jobs:
 
       - name: Build
         shell: bash
-        run: |
-          export JAVA_TOOL_OPTIONS="-Duser.language=en -Duser.country=US"
-          make images JOBS=$env:NUMBER_OF_PROCESSORS DISABLE_JAVA_WARNINGS=true
+        run: make images JOBS=$env:NUMBER_OF_PROCESSORS
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
