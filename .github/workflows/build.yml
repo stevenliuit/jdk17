@@ -1,0 +1,89 @@
+name: Build JDK 17
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., jdk-17+11)'
+        required: true
+        default: 'jdk-17+11'
+  push:
+    branches: [master]
+
+jobs:
+  build-linux-x86:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang libfreetype6-dev libcups2-dev libxrender-dev libxt-dev libasound2-dev
+
+      - name: Configure
+        run: bash configure --disable-warnings-as-errors
+
+      - name: Build
+        run: make images JOBS=$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdk17-linux-x86
+          path: build/*/images/jdk
+          retention-days: 5
+
+  build-linux-arm64:
+    runs-on: ubuntu-24.04-arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang libfreetype6-dev libcups2-dev libxrender-dev libxt-dev libasound2-dev
+
+      - name: Configure
+        run: bash configure --disable-warnings-as-errors
+
+      - name: Build
+        run: make images JOBS=$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdk17-linux-arm64
+          path: build/*/images/jdk
+          retention-days: 5
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          choco install -y make clang llvm
+
+      - name: Configure
+        shell: bash
+        run: |
+          ./configure --disable-warnings-as-errors --openjdk-target=x86_64-pc-windows-msvc
+
+      - name: Build
+        shell: bash
+        run: make images JOBS=$env:NUMBER_OF_PROCESSORS
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdk17-windows
+          path: build/*/images/jdk
+          retention-days: 5
