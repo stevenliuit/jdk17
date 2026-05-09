@@ -28,9 +28,10 @@ jobs:
             libasound2-dev libfontconfig1-dev
 
       - name: Configure
-        run: |
-          bash configure --disable-warnings-as-errors
-          sed -i 's/WARNINGS_ARE_ERRORS=true/WARNINGS_ARE_ERRORS=false/' build/linux-x86_64-server-release/spec.gmk
+        run: bash configure --disable-warnings-as-errors
+
+      - name: Patch spec.gmk
+        run: sed -i 's/WARNINGS_ARE_ERRORS=true/WARNINGS_ARE_ERRORS=false/' build/linux-x86_64-server-release/spec.gmk
 
       - name: Build
         run: make images JOBS=$(nproc)
@@ -59,9 +60,10 @@ jobs:
             libasound2-dev libfontconfig1-dev
 
       - name: Configure
-        run: |
-          bash configure --disable-warnings-as-errors
-          sed -i 's/WARNINGS_ARE_ERRORS=true/WARNINGS_ARE_ERRORS=false/' build/linux-aarch64-server-release/spec.gmk
+        run: bash configure --disable-warnings-as-errors
+
+      - name: Patch spec.gmk
+        run: sed -i 's/WARNINGS_ARE_ERRORS=true/WARNINGS_ARE_ERRORS=false/' build/linux-aarch64-server-release/spec.gmk
 
       - name: Build
         run: make images JOBS=$(nproc)
@@ -88,9 +90,11 @@ jobs:
 
       - name: Configure
         shell: bash
-        run: |
-          ./configure --disable-warnings-as-errors --openjdk-target=x86_64-pc-windows-msvc
-          sed -i 's/WARNINGS_ARE_ERRORS=true/WARNINGS_ARE_ERRORS=false/' build/x86_64-server-release/spec.gmk
+        run: ./configure --disable-warnings-as-errors --openjdk-target=x86_64-pc-windows-msvc
+
+      - name: Patch spec.gmk
+        shell: bash
+        run: sed -i 's/WARNINGS_ARE_ERRORS=true/WARNINGS_ARE_ERRORS=false/' build/x86_64-server-release/spec.gmk
 
       - name: Build
         shell: bash
