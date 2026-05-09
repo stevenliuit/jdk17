@@ -28,10 +28,10 @@ jobs:
             libasound2-dev libfontconfig1-dev
 
       - name: Configure
-        run: bash configure --disable-warnings-as-errors --with-conf=openjdk-jdk-17
+        run: bash configure --disable-warnings-as-errors
 
       - name: Build
-        run: make images JOBS=$(nproc) DISABLE_WARNING_ERROR=true
+        run: make images JOBS=$(nproc) WARNINGS_ARE_ERRORS=false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -60,7 +60,7 @@ jobs:
         run: bash configure --disable-warnings-as-errors
 
       - name: Build
-        run: make images JOBS=$(nproc) DISABLE_WARNING_ERROR=true
+        run: make images JOBS=$(nproc) WARNINGS_ARE_ERRORS=false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -89,7 +89,7 @@ jobs:
 
       - name: Build
         shell: bash
-        run: make images JOBS=$env:NUMBER_OF_PROCESSORS DISABLE_WARNING_ERROR=true
+        run: make images JOBS=$env:NUMBER_OF_PROCESSORS WARNINGS_ARE_ERRORS=false
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
