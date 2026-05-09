@@ -30,6 +30,10 @@ jobs:
             libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
             libasound2-dev libfontconfig1-dev
 
+      - name: Patch source for newer Java
+        run: |
+          sed -i '144s/@return/@SuppressWarnings("removal")\n    @return/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
+
       - name: Configure
         run: |
           CC=gcc-10 CXX=g++-10 bash configure \
@@ -37,7 +41,7 @@ jobs:
             --with-conf-name=linux-x86_64-server-release
 
       - name: Build
-        run: make images JOBS=$(nproc) USE_JDK_ALLOCATOR=false
+        run: make images JOBS=$(nproc)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -65,6 +69,10 @@ jobs:
             libx11-dev libxext-dev libxrender-dev libxrandr-dev libxtst-dev libxi-dev libxt-dev \
             libasound2-dev libfontconfig1-dev
 
+      - name: Patch source for newer Java
+        run: |
+          sed -i '144s/@return/@SuppressWarnings("removal")\n    @return/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
+
       - name: Configure
         run: |
           CC=gcc-10 CXX=g++-10 bash configure \
@@ -72,7 +80,7 @@ jobs:
             --with-conf-name=linux-aarch64-server-release
 
       - name: Build
-        run: make images JOBS=$(nproc) USE_JDK_ALLOCATOR=false
+        run: make images JOBS=$(nproc)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -92,6 +100,11 @@ jobs:
       - name: Install dependencies
         run: choco install -y make llvm autoconf zip
 
+      - name: Patch source for newer Java
+        shell: bash
+        run: |
+          sed -i '144s/@return/@SuppressWarnings("removal")\n    @return/' src/java.compiler/share/classes/javax/tools/ToolProvider.java
+
       - name: Configure
         shell: bash
         run: |
@@ -100,7 +113,7 @@ jobs:
 
       - name: Build
         shell: bash
-        run: make images JOBS=$env:NUMBER_OF_PROCESSORS USE_JDK_ALLOCATOR=false
+        run: make images JOBS=$env:NUMBER_OF_PROCESSORS
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
