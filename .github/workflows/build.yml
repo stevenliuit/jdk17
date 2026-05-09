@@ -28,13 +28,12 @@ jobs:
             libasound2-dev libfontconfig1-dev
 
       - name: Configure
-        run: bash configure --disable-warnings-as-errors
+        run: |
+          bash configure --disable-warnings-as-errors
+          sed -i 's/WARNINGS_ARE_ERRORS=true/WARNINGS_ARE_ERRORS=false/' build/linux-x86_64-server-release/spec.gmk
 
       - name: Build
-        run: |
-          make images JOBS=$(nproc) \
-            JAVAC_FLAGS="-Xlint:-options,-removal" \
-            JAVA_FLAGS="-Xlint:-options"
+        run: make images JOBS=$(nproc)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -60,13 +59,12 @@ jobs:
             libasound2-dev libfontconfig1-dev
 
       - name: Configure
-        run: bash configure --disable-warnings-as-errors
+        run: |
+          bash configure --disable-warnings-as-errors
+          sed -i 's/WARNINGS_ARE_ERRORS=true/WARNINGS_ARE_ERRORS=false/' build/linux-aarch64-server-release/spec.gmk
 
       - name: Build
-        run: |
-          make images JOBS=$(nproc) \
-            JAVAC_FLAGS="-Xlint:-options,-removal" \
-            JAVA_FLAGS="-Xlint:-options"
+        run: make images JOBS=$(nproc)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -92,13 +90,11 @@ jobs:
         shell: bash
         run: |
           ./configure --disable-warnings-as-errors --openjdk-target=x86_64-pc-windows-msvc
+          sed -i 's/WARNINGS_ARE_ERRORS=true/WARNINGS_ARE_ERRORS=false/' build/x86_64-server-release/spec.gmk
 
       - name: Build
         shell: bash
-        run: |
-          make images JOBS=$env:NUMBER_OF_PROCESSORS \
-            JAVAC_FLAGS="-Xlint:-options,-removal" \
-            JAVA_FLAGS="-Xlint:-options"
+        run: make images JOBS=$env:NUMBER_OF_PROCESSORS
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
