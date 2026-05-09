@@ -19,13 +19,16 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.version }}
 
-      - name: Install JDK 11 as boot JDK
+      - name: Download JDK 15 as boot JDK
         run: |
-          sudo apt-get update
-          sudo apt-get install -y openjdk-11-jdk
+          curl -sL https://github.com/adoptium/temurin15-binaries/releases/download/jdk-15.0.2%2B7/OpenJDK15U-jdk_x64_linux_hotspot_15.0.2_7.tar.gz -o boot-jdk.tar.gz
+          mkdir -p boot-jdk
+          tar -xzf boot-jdk.tar.gz -C boot-jdk --strip-components=1
+          ls boot-jdk
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential gcc-10 g++-10 \
             autoconf automake libtool zip unzip \
@@ -36,7 +39,7 @@ jobs:
 
       - name: Configure
         env:
-          JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+          JAVA_HOME: ${{ github.workspace }}/boot-jdk
         run: |
           CC=gcc-10 CXX=g++-10 bash configure \
             --disable-warnings-as-errors \
@@ -61,13 +64,16 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.version }}
 
-      - name: Install JDK 11 as boot JDK
+      - name: Download JDK 15 as boot JDK
         run: |
-          sudo apt-get update
-          sudo apt-get install -y openjdk-11-jdk
+          curl -sL https://github.com/adoptium/temurin15-binaries/releases/download/jdk-15.0.2%2B7/OpenJDK15U-jdk_aarch64_linux_hotspot_15.0.2_7.tar.gz -o boot-jdk.tar.gz
+          mkdir -p boot-jdk
+          tar -xzf boot-jdk.tar.gz -C boot-jdk --strip-components=1
+          ls boot-jdk
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential gcc-10 g++-10 \
             autoconf automake libtool zip unzip \
@@ -78,7 +84,7 @@ jobs:
 
       - name: Configure
         env:
-          JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+          JAVA_HOME: ${{ github.workspace }}/boot-jdk
         run: |
           CC=gcc-10 CXX=g++-10 bash configure \
             --disable-warnings-as-errors \
@@ -103,16 +109,20 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.version }}
 
-      - name: Install JDK 11 as boot JDK
-        run: choco install -y openjdk11
+      - name: Download JDK 15 as boot JDK
+        shell: bash
+        run: |
+          curl -sL https://github.com/adoptium/temurin15-binaries/releases/download/jdk-15.0.2%2B7/OpenJDK15U-jdk_x64_windows_hotspot_15.0.2_7.zip -o boot-jdk.zip
+          unzip -q boot-jdk.zip
+          ls
 
       - name: Install dependencies
         run: choco install -y make llvm autoconf zip
 
       - name: Configure
-        env:
-          JAVA_HOME: C:\Program Files\Eclipse Adoptium\jdk-11.0.21.9-hotspot
         shell: bash
+        env:
+          JAVA_HOME: ${{ github.workspace }}/jdk-15.0.2+7
         run: |
           ./configure --disable-warnings-as-errors \
             --openjdk-target=x86_64-pc-windows-msvc \
