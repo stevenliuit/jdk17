@@ -117,7 +117,7 @@ jobs:
           ls
 
       - name: Install dependencies
-        run: choco install -y make llvm autoconf zip
+        run: choco install -y make llvm zip
 
       - name: Configure
         shell: bash
@@ -126,7 +126,7 @@ jobs:
         run: |
           ./configure --disable-warnings-as-errors \
             --openjdk-target=x86_64-pc-windows-msvc \
-            --with-boot-jdk=$JAVA_HOME
+            --with-boot-jdk="$JAVA_HOME"
 
       - name: Build
         shell: bash
