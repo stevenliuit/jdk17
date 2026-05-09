@@ -28,9 +28,12 @@ jobs:
             libasound2-dev libfontconfig1-dev
 
       - name: Configure
+        run: bash configure --disable-warnings-as-errors
+
+      - name: Patch spec.gmk files
         run: |
-          bash configure --disable-warnings-as-errors
-          find build -name "spec.gmk" -exec sed -i 's/-Werror//g' {} \;
+          for f in $(find build -name "spec.gmk"); do sed -i 's/-Werror//g' "$f"; done
+          grep -r "WERROR" build/ || echo "No WERROR found"
 
       - name: Build
         run: make images JOBS=$(nproc)
@@ -59,9 +62,11 @@ jobs:
             libasound2-dev libfontconfig1-dev
 
       - name: Configure
+        run: bash configure --disable-warnings-as-errors
+
+      - name: Patch spec.gmk files
         run: |
-          bash configure --disable-warnings-as-errors
-          find build -name "spec.gmk" -exec sed -i 's/-Werror//g' {} \;
+          for f in $(find build -name "spec.gmk"); do sed -i 's/-Werror//g' "$f"; done
 
       - name: Build
         run: make images JOBS=$(nproc)
@@ -88,9 +93,12 @@ jobs:
 
       - name: Configure
         shell: bash
+        run: ./configure --disable-warnings-as-errors --openjdk-target=x86_64-pc-windows-msvc
+
+      - name: Patch spec.gmk files
+        shell: bash
         run: |
-          ./configure --disable-warnings-as-errors --openjdk-target=x86_64-pc-windows-msvc
-          find build -name "spec.gmk" -exec sed -i 's/-Werror//g' {} \;
+          for f in $(find build -name "spec.gmk"); do sed -i 's/-Werror//g' "$f"; done
 
       - name: Build
         shell: bash
