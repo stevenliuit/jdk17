@@ -117,7 +117,7 @@ jobs:
           ls
 
       - name: Install dependencies
-        run: choco install -y make llvm zip
+        run: choco install -y make llvm zip autoconf
 
       - name: Configure
         shell: bash
