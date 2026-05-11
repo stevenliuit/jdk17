@@ -317,41 +317,38 @@ jobs:
           $bootjdkPath = "C:\bootjdk\$($dir.Name)"
           echo "BOOT_JDK=$bootjdkPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "$bootjdkPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "BUILD_NUMBER=${{ needs.prepare.outputs.build_number }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "BUILD_TYPE=${{ github.event.inputs.build_type || 'release' }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Configure build
-        shell: bash
+        shell: cmd
         run: |
-          export PATH="/c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/bin:/c/Program Files/Microsoft Visual Studio/2022/BuildTools/Common7/Tools:/mingw64/bin:$PATH"
-          export INCLUDE="$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/include 2>/dev/null | head -1);$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/ATLMFC/include 2>/dev/null)"
-          export LIB="$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/lib/x64 2>/dev/null | head -1);$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/ATLMFC/lib/x64 2>/dev/null)"
-          bash configure \
-            --with-boot-jdk="${{ env.BOOT_JDK }}" \
-            --with-native-package-suffix=windows \
-            --with-version-opt="--${{ needs.prepare.outputs.build_number }}" \
-            --with-version-build="${{ needs.prepare.outputs.build_number }}" \
-            --disable-warnings-as-errors \
-            --with-jvm-variants=server \
-            --with-debug-level=${{ github.event.inputs.build_type || 'release' }} \
-            || (cat config.log && exit 1)
+          call "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
+          bash configure ^
+            --with-boot-jdk="%BOOT_JDK%" ^
+            --with-native-package-suffix=windows ^
+            --with-version-opt="--%BUILD_NUMBER%" ^
+            --with-version-build="%BUILD_NUMBER%" ^
+            --disable-warnings-as-errors ^
+            --with-jvm-variants=server ^
+            --with-debug-level=%BUILD_TYPE% || type config.log && exit /b 1
 
       - name: Build JDK
-        shell: bash
+        shell: cmd
         run: |
-          export PATH="/c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/bin:/c/Program Files/Microsoft Visual Studio/2022/BuildTools/Common7/Tools:/mingw64/bin:$PATH"
-          export INCLUDE="$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/include 2>/dev/null | head -1);$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/ATLMFC/include 2>/dev/null)"
-          export LIB="$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/lib/x64 2>/dev/null | head -1);$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/ATLMFC/lib/x64 2>/dev/null)"
+          call "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
           make images JOBS=8 LOG=cmdline
 
       - name: Test build
         shell: cmd
         run: |
-          build\windows-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}\jdk\bin\java.exe -version
+          build\windows-x64-server-%BUILD_TYPE%\jdk\bin\java.exe -version
 
       - name: Package JDK
         shell: powershell
         run: |
-          Compress-Archive -Path "build\windows-${{ matrix.arch }}-server-${{ github.event.inputs.build_type || 'release' }}\jdk" -DestinationPath "OpenJDK17-${{ matrix.arch }}-windows.zip"
-          Get-FileHash -Algorithm SHA256 "OpenJDK17-${{ matrix.arch }}-windows.zip" | Select-Object Hash | Out-File "OpenJDK17-${{ matrix.arch }}-windows.zip.sha256"
+          Compress-Archive -Path "build\windows-x64-server-%BUILD_TYPE%\jdk" -DestinationPath "OpenJDK17-x64-windows.zip"
+          Get-FileHash -Algorithm SHA256 "OpenJDK17-x64-windows.zip" | Select-Object Hash | Out-File "OpenJDK17-x64-windows.zip.sha256"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
