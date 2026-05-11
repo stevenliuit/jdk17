@@ -319,9 +319,11 @@ jobs:
           echo "$bootjdkPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Configure build
-        shell: cmd
+        shell: bash
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
+          export PATH="/c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/bin:/c/Program Files/Microsoft Visual Studio/2022/BuildTools/Common7/Tools:/mingw64/bin:$PATH"
+          export INCLUDE="$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/include 2>/dev/null | head -1);$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/ATLMFC/include 2>/dev/null)"
+          export LIB="$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/lib/x64 2>/dev/null | head -1);$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/ATLMFC/lib/x64 2>/dev/null)"
           bash configure \
             --with-boot-jdk="${{ env.BOOT_JDK }}" \
             --with-native-package-suffix=windows \
@@ -330,12 +332,14 @@ jobs:
             --disable-warnings-as-errors \
             --with-jvm-variants=server \
             --with-debug-level=${{ github.event.inputs.build_type || 'release' }} \
-            || (type config.log && exit 1)
+            || (cat config.log && exit 1)
 
       - name: Build JDK
-        shell: cmd
+        shell: bash
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
+          export PATH="/c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/bin:/c/Program Files/Microsoft Visual Studio/2022/BuildTools/Common7/Tools:/mingw64/bin:$PATH"
+          export INCLUDE="$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/include 2>/dev/null | head -1);$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/ATLMFC/include 2>/dev/null)"
+          export LIB="$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/*/lib/x64 2>/dev/null | head -1);$(cygpath -w /c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/ATLMFC/lib/x64 2>/dev/null)"
           make images JOBS=8 LOG=cmdline
 
       - name: Test build
